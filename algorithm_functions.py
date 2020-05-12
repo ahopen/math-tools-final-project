@@ -26,26 +26,22 @@ def create_trip_data_3d(n_trips, error_size = 0):
     features = np.concatenate((distances, tip_amount), axis = 1)
     return(features, trip_type, cost)
 
-def create_nd_data(data_size, error_size = 0, n_dim=5):
+def create_nd_data(data_size, error_size = 0, n_dim=5, mean=None, cov=None):
     beta_0 = np.random.randn(n_dim) * 5
     beta_1 = np.random.randn(n_dim) * 20
     
-    data = [np.ones(data_size)]
-    for _ in range(n_dim-1):
-        mean = np.random.randint(50)
-        
-        # The higher is std the worse optimal init performs
-        std = np.random.randint(4) + 0.001
-        data.append(np.random.normal(mean, std, size=data_size))
-
-    data = np.array(data)
+    if mean is None:
+        mean = np.random.randint(50, size=n_dim-1)
+        cov = np.diag(np.random.randint(4, size=n_dim-1) + np.ones(n_dim-1) * 0.001)
+    
+    data = np.concatenate((np.ones(data_size).reshape(-1,1), \
+                           np.random.multivariate_normal(mean, cov, data_size)), axis=1)
     
     trip_type = np.random.randint(0, 1+1, size = data_size).reshape(data_size, -1)
-    
-    cost = beta_0.dot(data) * trip_type.reshape(-1) + \
-                    beta_1.dot(data) * (1-trip_type.reshape(-1))  + np.random.normal(0, error_size, data_size)
+
+    cost = data.dot(beta_0) * trip_type.reshape(-1) + data.dot(beta_1) * (1-trip_type.reshape(-1)) + np.random.normal(0, error_size, data_size)
     cost = cost.reshape(-1)
-    features = data[1:,:].T
+    features = data[:,1:]
     
     return(features, trip_type, cost)
 
