@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import itertools
 
 """
+DATA GENERATING FUNCTIONS
+
 The following functions simulate data in various ways for mixed regression
 """
 def create_trip_data(n_trips, error_size = 0):
@@ -27,8 +29,8 @@ def create_trip_data_3d(n_trips, error_size = 0):
     return(features, trip_type, cost)
 
 def create_nd_data(data_size, error_size = 0, n_dim=5, mean=None, cov=None):
-    beta_0 = np.random.randn(n_dim) * 5
-    beta_1 = np.random.randn(n_dim) * 20
+    beta_0 = np.random.randn(n_dim+1) * 5
+    beta_1 = np.random.randn(n_dim+1) * 20
     
     if mean is None:
         mean = np.random.randint(50, size=n_dim-1)
@@ -47,6 +49,8 @@ def create_nd_data(data_size, error_size = 0, n_dim=5, mean=None, cov=None):
 
 
 """
+FUNCTIONS TO RUN THE EM ALGORITHM FOR MIXED REGRESSION
+
 This next set of functions fit linear mixed regression on a given data set
 fit_mixed_regression() calls either initialize_classic() or initialize_optimal
 Both initialize_*() functions call run_grid_search, unless search_grid = False and algo_type = 'classic'
@@ -131,9 +135,7 @@ def run_EM_iteration(X, y, betas, true_betas):
     
     iter_beta_err_v1 = max(np.linalg.norm(betas[0] - true_betas[0]), np.linalg.norm(betas[1] - true_betas[1]))
     iter_beta_err_v2 = max(np.linalg.norm(betas[1] - true_betas[0]), np.linalg.norm(betas[0] - true_betas[1]))
-    iter_beta_err = np.log(min(iter_beta_err_v1, iter_beta_err_v2))
-    if iter_beta_err < -35:
-        iter_beta_err = -35
+    iter_beta_err = np.log(max(1e-15,min(iter_beta_err_v1, iter_beta_err_v2)))
 
     
     return(betas, iter_err, iter_beta_err)
@@ -179,45 +181,58 @@ def fit_mixed_regression(x, y, z,
         return(betas, iter_errs, iter_beta_errs)
 
 """
+SIMULATING MANY FITS
+
 This function takes a data generating function and fitting options, and repeatedly generates
 a dataset and runs mixed regression in accordance with those options.
 """
     
-def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize):
+def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
+                  n_dim = None, mean = None, cov = None):
 
     all_iter_errs_classic = []
+    all_iter_errs_classic_grid = []
     all_iter_errs_opt = []
     beta_errs_classic = []
+    beta_errs_classic_grid = []
     beta_errs_opt = []
-    convergence_record_classic = []
+
     convergence_record_opt = []
     for run_num in range(n_sims):
-        features, trip_type, cost = creation_func(n_trips, error_size)
+        x, z, y = creation_func(n_trips, error_size, n_dim = n_dim, mean = mean, cov = cov)
         
         np.random.seed(run_num)
         
         betas_classic, iter_errs_classic, iter_beta_errs_classic = \
-            fit_mixed_regression(features, cost, trip_type, do_normalize = do_normalize, algo_type = 'classic')
+            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'classic', search_grid = False)
         
         if betas_classic == None:
             continue
         
+        betas_classic_grid, iter_errs_classic_grid, iter_beta_errs_classic_grid = \
+            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'classic', search_grid = True)
+        
         betas_opt, iter_errs_opt, iter_beta_errs_opt = \
-            fit_mixed_regression(features, cost, trip_type, do_normalize = do_normalize, algo_type = 'optimal')
+            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'optimal')
         
         all_iter_errs_classic.append(iter_errs_classic)
+        all_iter_errs_classic_grid.append(iter_errs_classic_grid)
         all_iter_errs_opt.append(iter_errs_opt)
         beta_errs_classic.append(iter_beta_errs_classic)
+        beta_errs_classic_grid.append(iter_beta_errs_classic_grid)
         beta_errs_opt.append(iter_beta_errs_opt)
 
     beta_errs_classic = np.array(beta_errs_classic)
+    beta_errs_classic_grid = np.array(beta_errs_classic_grid)
     beta_errs_opt = np.array(beta_errs_opt)
 
     avg_beta_errs_classic = np.mean(beta_errs_classic, axis = 0)
+    avg_beta_errs_classic_grid = np.mean(beta_errs_classic_grid, axis = 0)
     avg_beta_errs_opt = np.mean(beta_errs_opt, axis = 0)
 
     
     plt.plot(avg_beta_errs_classic, label = 'Classic')
+    plt.plot(avg_beta_errs_classic_grid, label = 'Classic + Grid Search')
     plt.plot(avg_beta_errs_opt, label = 'Optimal')
     plt.title('Average log parameter error')
     plt.legend()
