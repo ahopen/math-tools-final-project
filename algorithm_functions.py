@@ -188,7 +188,7 @@ a dataset and runs mixed regression in accordance with those options.
 """
     
 def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
-                  n_dim = None, mean = None, cov = None):
+                  n_dim = None, mean = None, cov = None, show=True):
 
     all_iter_errs_classic = []
     all_iter_errs_classic_grid = []
@@ -236,5 +236,6 @@ def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
     plt.plot(avg_beta_errs_opt, label = 'Optimal')
     plt.title('Average log parameter error')
     plt.legend()
-    plt.show()
+    if show:
+        plt.show()
 
