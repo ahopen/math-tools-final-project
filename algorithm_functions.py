@@ -28,7 +28,7 @@ def create_trip_data_3d(n_trips, error_size = 0):
     features = np.concatenate((distances, tip_amount), axis = 1)
     return(features, trip_type, cost)
 
-def create_nd_data(data_size, error_size = 0, n_dim=5, orthonorm = True, mean=None, cov=None):
+def create_nd_data(data_size, snr = 999, n_dim=5, orthonorm = True, mean=None, cov=None):
     #beta_0 = np.random.randn(n_dim+1)
     #beta_1 = np.random.randn(n_dim+1)
     beta_0 = np.random.randn(n_dim)
@@ -47,8 +47,14 @@ def create_nd_data(data_size, error_size = 0, n_dim=5, orthonorm = True, mean=No
     data = np.random.multivariate_normal(mean, cov, data_size)
     
     trip_type = np.random.randint(0, 1+1, size = data_size).reshape(data_size, -1)
-
-    cost = data.dot(beta_0) * trip_type.reshape(-1) + data.dot(beta_1) * (1-trip_type.reshape(-1)) + np.random.normal(0, error_size, data_size)
+    
+    no_error_cost = data.dot(beta_0) * trip_type.reshape(-1) + data.dot(beta_1) * (1-trip_type.reshape(-1))
+    if snr != 999:
+        outcome_variance = np.std(no_error_cost)**2
+        error_size = np.sqrt(outcome_variance / snr)
+    else:
+        error_size = 0
+    cost = no_error_cost + np.random.normal(0, error_size, data_size)
     cost = cost.reshape(-1)
     #features = data[:,1:]
     features = data
@@ -195,8 +201,9 @@ This function takes a data generating function and fitting options, and repeated
 a dataset and runs mixed regression in accordance with those options.
 """
     
-def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
-                  n_dim = None, mean = None, cov = None, show=True):
+def simulate_fits(n_trips, snr, creation_func, n_sims, do_normalize,
+                  n_iter = 10, n_dim = None, mean = None, cov = None, show=True,
+                  show_conv_pct = False):
 
     all_iter_errs_classic = []
     all_iter_errs_classic_grid = []
@@ -207,21 +214,21 @@ def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
 
     convergence_record_opt = []
     for run_num in range(n_sims):
-        x, z, y = creation_func(n_trips, error_size, n_dim = n_dim, mean = mean, cov = cov)
+        x, z, y = creation_func(n_trips, snr, n_dim = n_dim, mean = mean, cov = cov)
         
         np.random.seed(run_num)
         
         betas_classic, iter_errs_classic, iter_beta_errs_classic = \
-            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'classic', search_grid = False)
+            fit_mixed_regression(x, y, z, n_iter = n_iter, do_normalize = do_normalize, algo_type = 'classic', search_grid = False)
         
         if betas_classic == None:
             continue
         
         betas_classic_grid, iter_errs_classic_grid, iter_beta_errs_classic_grid = \
-            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'classic', search_grid = True)
+            fit_mixed_regression(x, y, z, n_iter = n_iter, do_normalize = do_normalize, algo_type = 'classic', search_grid = True)
         
         betas_opt, iter_errs_opt, iter_beta_errs_opt = \
-            fit_mixed_regression(x, y, z, do_normalize = do_normalize, algo_type = 'optimal')
+            fit_mixed_regression(x, y, z, n_iter = n_iter, do_normalize = do_normalize, algo_type = 'optimal')
         
         all_iter_errs_classic.append(iter_errs_classic)
         all_iter_errs_classic_grid.append(iter_errs_classic_grid)
@@ -238,11 +245,43 @@ def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
     avg_beta_errs_classic_grid = np.mean(beta_errs_classic_grid, axis = 0)
     avg_beta_errs_opt = np.mean(beta_errs_opt, axis = 0)
     
-    plt.plot(avg_beta_errs_classic, label = 'Classic')
-    plt.plot(avg_beta_errs_classic_grid, label = 'Classic + Grid Search')
-    plt.plot(avg_beta_errs_opt, label = 'Optimal')
-    plt.title('Average log parameter error')
-    plt.legend()
+    converged_classic = np.mean(beta_errs_classic < 1e-10, axis = 0)
+    converged_classic_grid = np.mean(beta_errs_classic_grid < 1e-10, axis = 0)
+    converged_opt = np.mean(beta_errs_opt < 1e-10, axis = 0)
+
+
+    
+    if show_conv_pct:
+        plt.figure(figsize=(10,5))
+        plt.subplot(1, 2, 1)
+        plt.plot(np.arange(n_iter) + 1, avg_beta_errs_classic, label = 'Classic')
+        plt.plot(np.arange(n_iter) + 1, avg_beta_errs_classic_grid, label = 'Classic + Grid Search')
+        plt.plot(np.arange(n_iter) + 1, avg_beta_errs_opt, label = 'Optimal')
+        plt.title('Average parameter error')
+        plt.xlabel('Iteration')
+        plt.ylabel('log(err)')
+        plt.legend()
+        
+        plt.subplot(1,2,2)
+        plt.plot(np.arange(n_iter) + 1, converged_classic, label = 'Classic')
+        plt.plot(np.arange(n_iter) + 1, converged_classic_grid, label = 'Classic + Grid Search')
+        plt.plot(np.arange(n_iter) + 1, converged_opt, label = 'Optimal')
+        plt.title('Convergence percentage')
+        plt.xlabel('Iteration')
+        plt.ylabel('% Converged')
+        plt.legend()
+        
+        plt.subplots_adjust(hspace=0.3)
+
+    else:
+        plt.plot(avg_beta_errs_classic, label = 'Classic')
+        plt.plot(avg_beta_errs_classic_grid, label = 'Classic + Grid Search')
+        plt.plot(avg_beta_errs_opt, label = 'Optimal')
+        plt.title('Average parameter error')
+        plt.xlabel('Iteration')
+        plt.ylabel('log(err)')
+        plt.legend()
+
     if show:
         plt.show()
 
