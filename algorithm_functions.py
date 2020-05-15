@@ -28,9 +28,14 @@ def create_trip_data_3d(n_trips, error_size = 0):
     features = np.concatenate((distances, tip_amount), axis = 1)
     return(features, trip_type, cost)
 
-def create_nd_data(data_size, error_size = 0, n_dim=5, mean=None, cov=None):
-    beta_0 = np.random.randn(n_dim+1) * 5
-    beta_1 = np.random.randn(n_dim+1) * 20
+def create_nd_data(data_size, error_size = 0, n_dim=5, orthonorm = True, mean=None, cov=None):
+    beta_0 = np.random.randn(n_dim+1)
+    beta_1 = np.random.randn(n_dim+1)
+    
+    if orthonorm:
+        beta_0 = beta_0 / np.linalg.norm(beta_0)
+        beta_1 = beta_1 - np.dot(beta_0, beta_1) * beta_1
+        beta_1 = beta_1 / np.linalg.norm(beta_1)
     
     if mean is None:
         mean = np.random.randint(50, size=n_dim-1)
@@ -62,13 +67,13 @@ def run_grid_search(v1, v2, X, y, delta = 0.3):
     G = G.reshape(-1, X.shape[0])
     min_loss = np.inf
     for u1 in G:
+        l1 = y - u1.dot(X)
         for u2 in G:
-            l1 = y - u1.dot(X)
             l2 = y - u2.dot(X)
             optim_mask = np.abs(l1) < np.abs(l2)
-            l1 = l1[optim_mask]
-            l2 = l2[~optim_mask]
-            loss = np.sum(l1**2) + np.sum(l2**2)
+            l1_masked = l1[optim_mask]
+            l2_masked = l2[~optim_mask]
+            loss = np.sum(l1_masked**2) + np.sum(l2_masked**2)
             if loss < min_loss:
                 min_loss = loss
                 betas = {0:u1, 1:u2}
