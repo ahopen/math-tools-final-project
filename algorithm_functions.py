@@ -29,9 +29,10 @@ def create_trip_data_3d(n_trips, error_size = 0):
     return(features, trip_type, cost)
 
 def create_nd_data(data_size, error_size = 0, n_dim=5, orthonorm = True, mean=None, cov=None):
-    beta_0 = np.random.randn(n_dim+1)
-    beta_1 = np.random.randn(n_dim+1)
-    
+    #beta_0 = np.random.randn(n_dim+1)
+    #beta_1 = np.random.randn(n_dim+1)
+    beta_0 = np.random.randn(n_dim)
+    beta_1 = np.random.randn(n_dim)
     if orthonorm:
         beta_0 = beta_0 / np.linalg.norm(beta_0)
         beta_1 = beta_1 - np.dot(beta_0, beta_1) * beta_1
@@ -41,15 +42,16 @@ def create_nd_data(data_size, error_size = 0, n_dim=5, orthonorm = True, mean=No
         mean = np.random.randint(50, size=n_dim-1)
         cov = np.diag(np.random.randint(4, size=n_dim-1) + np.ones(n_dim-1) * 0.001)
     
-    data = np.concatenate((np.ones(data_size).reshape(-1,1), \
-                           np.random.multivariate_normal(mean, cov, data_size)), axis=1)
+    #data = np.concatenate((np.ones(data_size).reshape(-1,1), \
+    #                       np.random.multivariate_normal(mean, cov, data_size)), axis=1)
+    data = np.random.multivariate_normal(mean, cov, data_size)
     
     trip_type = np.random.randint(0, 1+1, size = data_size).reshape(data_size, -1)
 
     cost = data.dot(beta_0) * trip_type.reshape(-1) + data.dot(beta_1) * (1-trip_type.reshape(-1)) + np.random.normal(0, error_size, data_size)
     cost = cost.reshape(-1)
-    features = data[:,1:]
-    
+    #features = data[:,1:]
+    features = data
     return(features, trip_type, cost)
 
 
@@ -149,11 +151,12 @@ def fit_mixed_regression(x, y, z,
                          do_normalize = True, n_iter = 10, algo_type = 'classic', 
                          search_grid = True, return_true_betas = False, delta = 0.3):
     n_samples = x.shape[0]
-    ones = np.ones(n_samples).reshape(-1, 1)
+    #ones = np.ones(n_samples).reshape(-1, 1)
     if do_normalize:
         x = (x - np.mean(x)) / np.std(x)
         y = (y - np.mean(y)) / np.std(y)
-    X = np.concatenate((ones, x), axis = 1).transpose()
+    #X = np.concatenate((ones, x), axis = 1).transpose()
+    X = x.transpose()
     
     #get true betas
     X0 = X[:, (z==0).reshape(-1)]
@@ -234,7 +237,6 @@ def simulate_fits(n_trips, error_size, creation_func, n_sims, do_normalize,
     avg_beta_errs_classic = np.mean(beta_errs_classic, axis = 0)
     avg_beta_errs_classic_grid = np.mean(beta_errs_classic_grid, axis = 0)
     avg_beta_errs_opt = np.mean(beta_errs_opt, axis = 0)
-
     
     plt.plot(avg_beta_errs_classic, label = 'Classic')
     plt.plot(avg_beta_errs_classic_grid, label = 'Classic + Grid Search')
